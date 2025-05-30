@@ -1,9 +1,13 @@
 
 import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogOut } from 'lucide-react';
+import AuthDialog from './AuthDialog';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const navigation = [
     { name: 'Home', href: '#home' },
@@ -34,14 +38,34 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Login Buttons */}
-          <div className="hidden md:flex space-x-4">
-            <button className="text-white hover:text-red-500 transition-colors">
-              Member Login
-            </button>
-            <button className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
-              Admin Login
-            </button>
+          {/* Auth Buttons */}
+          <div className="hidden md:flex space-x-4 items-center">
+            {user ? (
+              <div className="flex items-center space-x-4">
+                <span className="text-white">Welcome, {user.email}</span>
+                <Button
+                  onClick={signOut}
+                  variant="ghost"
+                  className="text-white hover:text-red-500"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <>
+                <AuthDialog>
+                  <button className="text-white hover:text-red-500 transition-colors">
+                    Member Login
+                  </button>
+                </AuthDialog>
+                <AuthDialog isAdmin>
+                  <button className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors">
+                    Admin Login
+                  </button>
+                </AuthDialog>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -70,12 +94,31 @@ const Header = () => {
                 </a>
               ))}
               <div className="pt-4 space-y-2">
-                <button className="block w-full text-left px-3 py-2 text-white hover:text-red-500">
-                  Member Login
-                </button>
-                <button className="block w-full text-left px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
-                  Admin Login
-                </button>
+                {user ? (
+                  <div className="space-y-2">
+                    <div className="px-3 py-2 text-white">Welcome, {user.email}</div>
+                    <Button
+                      onClick={signOut}
+                      variant="ghost"
+                      className="w-full text-left px-3 py-2 text-white hover:text-red-500"
+                    >
+                      Logout
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <AuthDialog>
+                      <button className="block w-full text-left px-3 py-2 text-white hover:text-red-500">
+                        Member Login
+                      </button>
+                    </AuthDialog>
+                    <AuthDialog isAdmin>
+                      <button className="block w-full text-left px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                        Admin Login
+                      </button>
+                    </AuthDialog>
+                  </>
+                )}
               </div>
             </div>
           </div>
