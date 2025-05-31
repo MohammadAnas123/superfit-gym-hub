@@ -6,8 +6,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 
 const Header = () => {
+  console.log('Header component rendering');
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
+
+  console.log('Header: user state', user, 'loading', loading);
 
   const navigation = [
     { name: 'Home', href: '#home' },
@@ -16,6 +20,22 @@ const Header = () => {
     { name: 'Gallery', href: '#gallery' },
     { name: 'Contact', href: '#contact' },
   ];
+
+  // Show loading state while auth is initializing
+  if (loading) {
+    return (
+      <header className="bg-black text-white fixed w-full top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-red-500">SUPERFIT</h1>
+            </div>
+            <div className="text-white">Loading...</div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="bg-black text-white fixed w-full top-0 z-50">
