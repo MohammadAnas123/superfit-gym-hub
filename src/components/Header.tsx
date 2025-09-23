@@ -4,6 +4,9 @@ import { Menu, X, LogOut } from 'lucide-react';
 import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { supabase } from "./lib/supabaseClient";
+
+console.log(supabase); 
 
 const Header = () => {
   console.log('Header component rendering');
