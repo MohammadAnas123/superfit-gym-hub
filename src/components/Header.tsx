@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { supabase } from "../lib/supabaseClient";
 
 console.log("Hello"+supabase); 
-
 const Header = () => {
   console.log('Header component rendering');
   
