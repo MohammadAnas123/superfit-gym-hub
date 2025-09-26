@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from "../lib/supabaseClient";
 import { useToast } from '@/hooks/use-toast';
+import { Eye, EyeOff } from "lucide-react";
 
 interface AuthDialogProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // OTP related states
   const [otp, setOtp] = useState('');
@@ -237,42 +239,102 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
+              <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
+                <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
+                  Name
+                </legend>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="w-full focus:outline-none text-base text-gray-900"
+                />
+              </fieldset>
 
               <div className="flex gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                {/* Phone */}
+                <div className="flex-1">
+                  <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
+                    <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
+                      Phone
+                    </legend>
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                      className="w-full focus:outline-none text-base text-gray-900"
+                    />
+                  </fieldset>
                 </div>
 
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="gender">Gender</Label>
-                  <Select value={gender} onValueChange={setGender} required>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Male">Male</SelectItem>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                {/* Gender - Using fieldset/legend to match Phone */}
+                <div className="flex-1">
+                  <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
+                    <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
+                      Gender
+                    </legend>
+                    <Select value={gender} onValueChange={setGender} required>
+                      <SelectTrigger className="w-full h-[28px] p-0 border-0 focus:ring-0 focus:ring-offset-0 shadow-none">
+                        <SelectValue placeholder="Select Gender" className="text-base" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </fieldset>
                 </div>
               </div>
             </>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-          </div>
+          <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
+            <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
+              Email
+            </legend>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // Reset OTP input and verification when email changes
+                setOtp('');
+                setOtpVerified(false);
+                setOtpSent(false);
+              }}
+              required
+              className="w-full focus:outline-none text-base text-gray-900"
+            />
+          </fieldset>
+
+          <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
+            <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
+              Password
+            </legend>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full focus:outline-none text-base text-gray-900 pr-8"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </fieldset>
 
           {!isLogin && (
             <div className="space-y-4">
@@ -286,19 +348,27 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
               </Button>
 
               {otpSent && (
-                <div className="space-y-2">
-                  <Label htmlFor="otp">Enter 6-digit OTP</Label>
-                  <Input
+                <fieldset className={`relative border rounded-lg px-3 pt-1 pb-2 ${
+                  otpVerified ? 'border-green-500' : 'border-gray-300 focus-within:border-black'
+                }`}>
+                  <legend className={`px-1 text-sm transition-colors ${
+                    otpVerified ? 'text-green-600' : 'text-gray-600 focus-within:text-black'
+                  }`}>
+                    Enter 6-digit OTP
+                  </legend>
+                  <input
                     id="otp"
                     type="text"
                     value={otp}
                     onChange={(e) => handleOtpChange(e.target.value)}
                     maxLength={6}
                     placeholder="000000"
-                    className={otpVerified ? 'border-green-500' : ''}
+                    className="w-full focus:outline-none text-base text-gray-900"
                   />
-                  {otpVerified && <p className="text-sm text-green-600">✓ OTP verified successfully!</p>}
-                </div>
+                  {otpVerified && (
+                    <p className="text-sm text-green-600 mt-1">✓ OTP verified successfully!</p>
+                  )}
+                </fieldset>
               )}
             </div>
           )}
