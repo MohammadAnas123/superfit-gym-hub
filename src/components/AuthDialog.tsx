@@ -426,9 +426,13 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
             {loading ? 'Loading...' : isLogin ? 'Login' : 'Sign Up'}
           </Button>
 
-          <Button type="button" variant="ghost" className="w-full" onClick={handleModeSwitch}>
+          {
+            !isAdmin &&(
+            <Button type="button" variant="ghost" className="w-full" onClick={handleModeSwitch}>
             {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Login'}
           </Button>
+            )
+          }
         </form>
       </DialogContent>
     </Dialog>
