@@ -52,12 +52,38 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   const isSignupFormComplete = !isLogin && name && email && password && phone && gender;
 
   // Generate 6-digit random OTP
-  const generateOtp = () => {
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(newOtp);
-    console.log('Generated OTP:', newOtp); // ✅ Keep this log for testing
-    return newOtp;
-  };
+ 
+  const generateOtp = async () => {
+  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  setGeneratedOtp(newOtp);
+
+  // Await the API call
+  await sendOtpToEmail(email, newOtp);
+
+  console.log('Generated OTP:', newOtp); // ✅ Keep this log for testing
+  return newOtp;
+};
+
+
+  //Send otp to mail function
+  const sendOtpToEmail = async (userEmail: string, otp: string) => {
+  try {
+    const response = await fetch("http://localhost:5000/api/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail, otp }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    // console.log(data.message);
+  } catch (err) {
+    console.error("Error sending OTP:", err);
+  }
+};
 
   // Email validation function
   const isValidEmail = (email: string) => {
@@ -93,7 +119,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
     toast({
       title: 'OTP Sent!',
-      description: `6-digit OTP has been generated. Check console for the code.`,
+      description: `A 6-digit OTP has been sent over your mail.`,
     });
   };
 
@@ -128,14 +154,18 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
     try {
       if (isLogin) {
         // LOGIN
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-
+        const { data: loginData, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          console.error('Supabase Auth Error:', error);
+          console.log('Supabase Auth Data:', loginData);
+          throw error;
+        }
         const { data: userData, error: userError } = await supabase
           .from('user_master')
           .select('*')
           .eq('email', email)
           .single();
+
 
         if (userError) throw userError;
         if (!userData.admin_approved) throw new Error('Admin approval pending');
@@ -193,7 +223,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
         toast({
           title: 'Success!',
-          description: 'Account created. Please verify your email and wait for admin approval.',
+          description: 'Account created successfully. Please wait for sometime until the admin approves your request.',
         });
       }
 
