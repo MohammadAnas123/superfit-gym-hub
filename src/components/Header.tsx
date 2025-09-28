@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, X, LogOut } from 'lucide-react';
 import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,34 @@ const Header = () => {
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, signOut, loading } = useAuth();
+  const [userName, setUserName] = useState<string>("");
+
+  // Helper to capitalize first letter
+  const formatName = (name: string) => {
+    if (!name) return "";
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  };
+
+  // Fetch user name from user_master after login
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (user?.id) {
+        const { data, error } = await supabase
+          .from("user_master")
+          .select("user_name")
+          .eq("user_id", user.id)
+          .single();
+        if (data?.user_name) {
+          setUserName(formatName(data.user_name));
+        } else {
+          setUserName("");
+        }
+      } else {
+        setUserName("");
+      }
+    };
+    fetchUserName();
+  }, [user]);
 
   console.log('Header: user state', user, 'loading', loading);
 
@@ -64,7 +92,7 @@ const Header = () => {
           <div className="hidden md:flex space-x-4 items-center">
             {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-white">Welcome, {user.email}</span>
+                <span className="text-white">Welcome, {userName}</span>
                 <Button
                   onClick={signOut}
                   variant="ghost"
@@ -118,7 +146,7 @@ const Header = () => {
               <div className="pt-4 space-y-2">
                 {user ? (
                   <div className="space-y-2">
-                    <div className="px-3 py-2 text-white">Welcome, {user.email}</div>
+                    <div className="px-3 py-2 text-white">Welcome, {userName}</div>
                     <Button
                       onClick={signOut}
                       variant="ghost"

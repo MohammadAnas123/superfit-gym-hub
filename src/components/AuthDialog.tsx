@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from "../lib/supabaseClient";
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from "lucide-react";
+
 
 interface AuthDialogProps {
   children: React.ReactNode;
@@ -18,6 +19,8 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
   const [phone, setPhone] = useState('');
   const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
@@ -166,9 +169,12 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           .eq('email', email)
           .single();
 
-
         if (userError) throw userError;
-        if (!userData.admin_approved) throw new Error('Admin approval pending');
+        if (!userData.admin_approved) {
+          // Sign out if not approved
+          await supabase.auth.signOut();
+          throw new Error('Admin approval pending');
+        }
 
         toast({
           title: 'Success!',
@@ -221,6 +227,9 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           throw new Error(`Failed to create user profile: ${userInsertError.message}`);
         }
 
+        // Immediately sign out after signup so user is not logged in
+        await supabase.auth.signOut();
+
         toast({
           title: 'Success!',
           description: 'Account created successfully. Please wait for sometime until the admin approves your request.',
@@ -235,6 +244,11 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         description: error.message,
         variant: 'destructive',
       });
+      // Clear and focus password field on error
+      setPassword("");
+      setTimeout(() => {
+        passwordInputRef.current?.focus();
+      }, 0);
     } finally {
       setLoading(false);
     }
@@ -355,6 +369,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full focus:outline-none text-base text-gray-900 pr-8"
+              ref={passwordInputRef}
               />
               <button
                 type="button"
