@@ -1,47 +1,19 @@
-
-import { useState, useEffect } from 'react';
-import { Menu, X, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Menu, X, LogOut, Shield } from 'lucide-react';
 import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { supabase } from "../lib/supabaseClient";
 
-console.log("Hello"+supabase); 
 const Header = () => {
-  console.log('Header component rendering');
   
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, signOut, loading } = useAuth();
-  const [userName, setUserName] = useState<string>("");
+  const { user, userName, isAdmin, signOut, loading } = useAuth();
 
   // Helper to capitalize first letter
   const formatName = (name: string) => {
     if (!name) return "";
     return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   };
-
-  // Fetch user name from user_master after login
-  useEffect(() => {
-    const fetchUserName = async () => {
-      if (user?.id) {
-        const { data, error } = await supabase
-          .from("user_master")
-          .select("user_name")
-          .eq("user_id", user.id)
-          .single();
-        if (data?.user_name) {
-          setUserName(formatName(data.user_name));
-        } else {
-          setUserName("");
-        }
-      } else {
-        setUserName("");
-      }
-    };
-    fetchUserName();
-  }, [user]);
-
-  console.log('Header: user state', user, 'loading', loading);
 
   const navigation = [
     { name: 'Home', href: '#home' },
@@ -92,11 +64,19 @@ const Header = () => {
           <div className="hidden md:flex space-x-4 items-center">
             {user ? (
               <div className="flex items-center space-x-4">
-                <span className="text-white">Welcome, {userName}</span>
+                <div className="flex items-center space-x-2">
+                  {isAdmin && (
+                    <Shield size={18} className="text-blue-400" />
+                  )}
+                  <span className="text-white">
+                    Welcome, <span className="font-semibold">{formatName(userName)}</span>
+                    {isAdmin && <span className="ml-1 text-blue-400 text-sm">(Admin)</span>}
+                  </span>
+                </div>
                 <Button
                   onClick={signOut}
                   variant="ghost"
-                  className="text-white hover:text-red-500"
+                  className="text-white hover:text-red-500 hover:bg-transparent"
                 >
                   <LogOut size={16} className="mr-2" />
                   Logout
@@ -146,24 +126,42 @@ const Header = () => {
               <div className="pt-4 space-y-2">
                 {user ? (
                   <div className="space-y-2">
-                    <div className="px-3 py-2 text-white">Welcome, {userName}</div>
+                    <div className="px-3 py-2 text-white flex items-center space-x-2">
+                      {isAdmin && (
+                        <Shield size={16} className="text-blue-400" />
+                      )}
+                      <span>
+                        Welcome, {formatName(userName)}
+                        {isAdmin && <span className="ml-1 text-blue-400 text-sm">(Admin)</span>}
+                      </span>
+                    </div>
                     <Button
-                      onClick={signOut}
+                      onClick={() => {
+                        signOut();
+                        setIsMenuOpen(false);
+                      }}
                       variant="ghost"
-                      className="w-full text-left px-3 py-2 text-white hover:text-red-500"
+                      className="w-full text-left px-3 py-2 text-white hover:text-red-500 justify-start"
                     >
+                      <LogOut size={16} className="mr-2" />
                       Logout
                     </Button>
                   </div>
                 ) : (
                   <>
                     <AuthDialog>
-                      <button className="block w-full text-left px-3 py-2 text-white hover:text-red-500">
+                      <button 
+                        className="block w-full text-left px-3 py-2 text-white hover:text-red-500"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
                         Member Login
                       </button>
                     </AuthDialog>
                     <AuthDialog isAdmin>
-                      <button className="block w-full text-left px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                      <button 
+                        className="block w-full text-left px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
                         Admin Login
                       </button>
                     </AuthDialog>

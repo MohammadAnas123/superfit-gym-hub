@@ -1,53 +1,185 @@
-import { useState, useEffect } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabaseClient";
+// src/hooks/useAuth.tsx
+import { useState, useEffect } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
+}
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    console.log("useAuth: Initializing...");
-
-    // 1. Load current session
-    const loadSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      console.log("useAuth: Initial session", session);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchUserData(session.user.id, session.user.email || '');
+        } else {
+          setUser(null);
+          setUserData(null);
+        }
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadSession();
 
-    // 2. Subscribe to changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+    getInitialSession();
 
-        setTimeout(() => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    }, 500);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (session?.user) {
+          setUser(session.user);
+          await fetchUserData(session.user.id, session.user.email || '');
+        } else {
+          setUser(null);
+          setUserData(null);
+        }
+        setLoading(false);
       }
     );
 
-    // 3. Cleanup
     return () => {
-      console.log("useAuth: Cleaning up subscription");
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
-  // Sign out helper
-  const signOut = async () => {
-    console.log("useAuth: Signing out");
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
+  const fetchUserData = async (userId: string, email: string) => {
+    try {
+      console.log('Fetching user data for:', { userId, email }); // Debug log
+      
+      // First, try to find admin by admin_id
+      let { data: adminData, error: adminError } = await supabase
+        .from('admin_master')
+        .select('admin_name, email, status, admin_id')
+        .eq('admin_id', userId)
+        .maybeSingle();
+
+      // If not found by ID, try by email
+      if (!adminData && !adminError) {
+        console.log('Admin not found by ID, trying email...'); // Debug log
+        const result = await supabase
+          .from('admin_master')
+          .select('admin_name, email, status, admin_id')
+          .ilike('email', email.trim().toLowerCase())
+          .maybeSingle();
+        adminData = result.data;
+        adminError = result.error;
+      }
+
+      console.log('Admin query result:', { adminData, adminError }); // Debug log
+
+      if (!adminError && adminData) {
+        // User is an admin
+        console.log('Admin found:', adminData);
+        setUserData({
+          id: userId,
+          name: adminData.admin_name || 'Admin',
+          email: adminData.email,
+          isAdmin: true
+        });
+        return;
+      }
+
+      // If not admin, check user_master
+      let { data: memberData, error: memberError } = await supabase
+        .from('user_master')
+        .select('user_name, email, user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      // If not found by ID, try by email
+      if (!memberData && !memberError) {
+        console.log('User not found by ID, trying email...'); // Debug log
+        const result = await supabase
+          .from('user_master')
+          .select('user_name, email, user_id')
+          .ilike('email', email.trim().toLowerCase())
+          .maybeSingle();
+        memberData = result.data;
+        memberError = result.error;
+      }
+
+      console.log('User query result:', { memberData, memberError }); // Debug log
+
+      if (!memberError && memberData) {
+        console.log('User found:', memberData);
+        setUserData({
+          id: userId,
+          name: memberData.user_name || 'User',
+          email: memberData.email,
+          isAdmin: false
+        });
+        return;
+      }
+
+      // If neither admin nor user found
+      console.warn('User not found in admin_master or user_master');
+      setUserData({
+        id: userId,
+        name: email.split('@')[0],
+        email: email,
+        isAdmin: false
+      });
+
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setUserData({
+        id: userId,
+        name: 'User',
+        email: email,
+        isAdmin: false
+      });
+    }
   };
 
-  return { user, session, loading, signOut };
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      setUserData(null);
+      
+      toast({
+        title: 'Success',
+        description: 'Logged out successfully',
+      });
+      
+      // Optionally redirect to home
+      window.location.href = '#home';
+    } catch (error: any) {
+      console.error('Error logging out:', error);
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return {
+    user,
+    userData,
+    loading,
+    signOut,
+    isAdmin: userData?.isAdmin || false,
+    userName: userData?.name || ''
+  };
 };

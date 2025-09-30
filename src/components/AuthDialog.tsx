@@ -55,38 +55,43 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   const isSignupFormComplete = !isLogin && name && email && password && phone && gender;
 
   // Generate 6-digit random OTP
- 
   const generateOtp = async () => {
-  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-  setGeneratedOtp(newOtp);
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(newOtp);
 
-  // Await the API call
-  await sendOtpToEmail(email, newOtp);
+    // Await the API call
+    await sendOtpToEmail(email, newOtp, name);
 
-  console.log('Generated OTP:', newOtp); // ✅ Keep this log for testing
-  return newOtp;
-};
+    console.log('Generated OTP:', newOtp); // Keep this log for testing
+    return newOtp;
+  };
 
+  // Send otp to mail function
+  const sendOtpToEmail = async (userEmail: string, otp: string, userName: string = 'User') => {
+    try {
+      const response = await fetch("http://localhost:5000/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail, otp, name: userName }),
+      });
 
-  //Send otp to mail function
-  const sendOtpToEmail = async (userEmail: string, otp: string) => {
-  try {
-    const response = await fetch("http://localhost:5000/api/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail, otp }),
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Server error: ${response.status}`);
+      }
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.status}`);
+      const data = await response.json();
+      console.log('OTP sent successfully:', data.message);
+    } catch (err) {
+      console.error("Error sending OTP:", err);
+      toast({
+        title: 'Error',
+        description: 'Failed to send OTP. Please try again.',
+        variant: 'destructive',
+      });
+      throw err;
     }
-
-    const data = await response.json();
-    // console.log(data.message);
-  } catch (err) {
-    console.error("Error sending OTP:", err);
-  }
-};
+  };
 
   // Email validation function
   const isValidEmail = (email: string) => {
@@ -95,7 +100,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   };
 
   // Handle Send/Resend OTP
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     if (!isSignupFormComplete) {
       toast({
         title: 'Error',
@@ -114,16 +119,23 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
       return;
     }
 
-    generateOtp();
-    setOtpSent(true);
-    setOtpVerified(false);
-    setOtp('');
-    setTimer(30); // start 30s countdown
+    try {
+      setLoading(true);
+      await generateOtp();
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtp('');
+      setTimer(30); // start 30s countdown
 
-    toast({
-      title: 'OTP Sent!',
-      description: `A 6-digit OTP has been sent over your mail.`,
-    });
+      toast({
+        title: 'OTP Sent!',
+        description: `A 6-digit OTP has been sent to ${email}`,
+      });
+    } catch (error) {
+      console.error('Error in handleSendOtp:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Countdown effect
@@ -156,32 +168,84 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
     try {
       if (isLogin) {
-        // LOGIN
-        const { data: loginData, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          console.error('Supabase Auth Error:', error);
-          console.log('Supabase Auth Data:', loginData);
-          throw error;
-        }
-        const { data: userData, error: userError } = await supabase
-          .from('user_master')
-          .select('*')
-          .eq('email', email)
-          .single();
+        // LOGIN - Different logic for Admin vs User
+        if (isAdmin) {
+          // ADMIN LOGIN
+          const { data: loginData, error } = await supabase.auth.signInWithPassword({ 
+            email, 
+            password 
+          });
+          
+          if (error) {
+            console.error('Supabase Auth Error:', error);
+            throw error;
+          }
 
-        if (userError) throw userError;
-        if (!userData.admin_approved) {
-          // Sign out if not approved
-          await supabase.auth.signOut();
-          throw new Error('Admin approval pending');
-        }
+          // Check if admin exists and is active
+          const { data: adminData, error: adminError } = await supabase
+            .from('admin_master')
+            .select('*')
+            .eq('admin_email', email)
+            .single(); // Use maybeSingle() instead of single()
+        
+          console.log('Admin Data:', adminData); // Debug log
+          console.log('Admin Error:', adminError); // Debug log
 
-        toast({
-          title: 'Success!',
-          description: 'Logged in successfully.',
-        });
+          // Check if there was a real error (not just "no rows")
+          if (adminError) {
+            console.error('Database query error:', adminError);
+            await supabase.auth.signOut();
+            throw new Error('Error checking admin account');
+          }
+
+          // Check if admin record exists
+          if (!adminData) {
+            await supabase.auth.signOut();
+            throw new Error('Admin account not found in admin_master table');
+          }
+
+          // Check if admin status is active
+          if (adminData.status !== 'active') {
+            await supabase.auth.signOut();
+            throw new Error('Admin account is inactive. Please contact system administrator.');
+          }
+
+          toast({
+            title: 'Success!',
+            description: 'Admin logged in successfully.',
+          });
+        } else {
+          // USER LOGIN (existing logic)
+          const { data: loginData, error } = await supabase.auth.signInWithPassword({ 
+            email, 
+            password 
+          });
+          
+          if (error) {
+            console.error('Supabase Auth Error:', error);
+            throw error;
+          }
+
+          const { data: userData, error: userError } = await supabase
+            .from('user_master')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+          if (userError) throw userError;
+          
+          if (!userData.admin_approved) {
+            await supabase.auth.signOut();
+            throw new Error('Admin approval pending');
+          }
+
+          toast({
+            title: 'Success!',
+            description: 'Logged in successfully.',
+          });
+        }
       } else {
-        // SIGNUP
+        // SIGNUP (Only for users, not admins)
         if (!otpVerified) throw new Error('Please verify OTP before signing up.');
 
         if (!isValidEmail(email)) {
@@ -197,8 +261,11 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           .single();
 
         if (existingUser) {
-          if (!existingUser.admin_approved) throw new Error('User already registered! Admin approval is pending');
-          else throw new Error('User already registered!');
+          if (!existingUser.admin_approved) {
+            throw new Error('User already registered! Admin approval is pending');
+          } else {
+            throw new Error('User already registered!');
+          }
         }
 
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -232,7 +299,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
         toast({
           title: 'Success!',
-          description: 'Account created successfully. Please wait for sometime until the admin approves your request.',
+          description: 'Account created successfully. Please wait for admin approval.',
         });
       }
 
@@ -315,7 +382,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
                   </fieldset>
                 </div>
 
-                {/* Gender - Using fieldset/legend to match Phone */}
+                {/* Gender */}
                 <div className="flex-1">
                   <fieldset className="relative border border-gray-300 rounded-lg px-3 pt-1 pb-2 focus-within:border-black">
                     <legend className="px-1 text-sm text-gray-600 transition-colors focus-within:text-black">
@@ -369,7 +436,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full focus:outline-none text-base text-gray-900 pr-8"
-              ref={passwordInputRef}
+                ref={passwordInputRef}
               />
               <button
                 type="button"
@@ -387,9 +454,9 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
                 type="button"
                 onClick={handleSendOtp}
                 className="w-full bg-blue-500 hover:bg-blue-600"
-                disabled={!isSignupFormComplete || timer > 0}
+                disabled={!isSignupFormComplete || timer > 0 || loading}
               >
-                {timer > 0 ? `Resend OTP in ${timer}s` : otpSent ? 'Resend OTP' : 'Send OTP'}
+                {loading ? 'Sending...' : timer > 0 ? `Resend OTP in ${timer}s` : otpSent ? 'Resend OTP' : 'Send OTP'}
               </Button>
 
               {otpSent && (
@@ -426,13 +493,11 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
             {loading ? 'Loading...' : isLogin ? 'Login' : 'Sign Up'}
           </Button>
 
-          {
-            !isAdmin &&(
+          {!isAdmin && (
             <Button type="button" variant="ghost" className="w-full" onClick={handleModeSwitch}>
-            {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Login'}
-          </Button>
-            )
-          }
+              {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Login'}
+            </Button>
+          )}
         </form>
       </DialogContent>
     </Dialog>
