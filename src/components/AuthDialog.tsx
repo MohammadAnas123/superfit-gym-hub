@@ -60,36 +60,28 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
     setGeneratedOtp(newOtp);
 
     // Await the API call
-    await sendOtpToEmail(email, newOtp, name);
+    await sendOtpToEmail(email, newOtp);
 
-    console.log('Generated OTP:', newOtp); // Keep this log for testing
+    console.log('Generated OTP:', newOtp);
     return newOtp;
   };
 
   // Send otp to mail function
-  const sendOtpToEmail = async (userEmail: string, otp: string, userName: string = 'User') => {
+  const sendOtpToEmail = async (userEmail: string, otp: string) => {
     try {
       const response = await fetch("http://localhost:5000/api/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail, otp, name: userName }),
+        body: JSON.stringify({ email: userEmail, otp }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Server error: ${response.status}`);
+        throw new Error(`Server error: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('OTP sent successfully:', data.message);
     } catch (err) {
       console.error("Error sending OTP:", err);
-      toast({
-        title: 'Error',
-        description: 'Failed to send OTP. Please try again.',
-        variant: 'destructive',
-      });
-      throw err;
     }
   };
 
@@ -100,7 +92,7 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
   };
 
   // Handle Send/Resend OTP
-  const handleSendOtp = async () => {
+  const handleSendOtp = () => {
     if (!isSignupFormComplete) {
       toast({
         title: 'Error',
@@ -119,23 +111,16 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
       return;
     }
 
-    try {
-      setLoading(true);
-      await generateOtp();
-      setOtpSent(true);
-      setOtpVerified(false);
-      setOtp('');
-      setTimer(30); // start 30s countdown
+    generateOtp();
+    setOtpSent(true);
+    setOtpVerified(false);
+    setOtp('');
+    setTimer(30);
 
-      toast({
-        title: 'OTP Sent!',
-        description: `A 6-digit OTP has been sent to ${email}`,
-      });
-    } catch (error) {
-      console.error('Error in handleSendOtp:', error);
-    } finally {
-      setLoading(false);
-    }
+    toast({
+      title: 'OTP Sent!',
+      description: `A 6-digit OTP has been sent over your mail.`,
+    });
   };
 
   // Countdown effect
@@ -168,84 +153,40 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
     try {
       if (isLogin) {
-        // LOGIN - Different logic for Admin vs User
-        if (isAdmin) {
-          // ADMIN LOGIN
-          const { data: loginData, error } = await supabase.auth.signInWithPassword({ 
-            email, 
-            password 
-          });
-          
-          if (error) {
-            console.error('Supabase Auth Error:', error);
-            throw error;
-          }
-
-          // Check if admin exists and is active
-          const { data: adminData, error: adminError } = await supabase
-            .from('admin_master')
-            .select('*')
-            .eq('admin_email', email)
-            .single(); // Use maybeSingle() instead of single()
+        // LOGIN
+        const { data: loginData, error } = await supabase.auth.signInWithPassword({ 
+          email, 
+          password 
+        });
         
-          console.log('Admin Data:', adminData); // Debug log
-          console.log('Admin Error:', adminError); // Debug log
+        if (error) {
+          console.error('Supabase Auth Error:', error);
+          throw error;
+        }
 
-          // Check if there was a real error (not just "no rows")
-          if (adminError) {
-            console.error('Database query error:', adminError);
-            await supabase.auth.signOut();
-            throw new Error('Error checking admin account');
-          }
-
-          // Check if admin record exists
-          if (!adminData) {
-            await supabase.auth.signOut();
-            throw new Error('Admin account not found in admin_master table');
-          }
-
-          // Check if admin status is active
-          if (adminData.status !== 'active') {
-            await supabase.auth.signOut();
-            throw new Error('Admin account is inactive. Please contact system administrator.');
-          }
-
-          toast({
-            title: 'Success!',
-            description: 'Admin logged in successfully.',
-          });
-        } else {
-          // USER LOGIN (existing logic)
-          const { data: loginData, error } = await supabase.auth.signInWithPassword({ 
-            email, 
-            password 
-          });
-          
-          if (error) {
-            console.error('Supabase Auth Error:', error);
-            throw error;
-          }
-
+        // Check if user is a member (not admin)
+        if (!isAdmin) {
           const { data: userData, error: userError } = await supabase
             .from('user_master')
-            .select('*')
+            .select('admin_approved')
             .eq('email', email)
             .single();
 
           if (userError) throw userError;
-          
+
+          // Check if user is approved
           if (!userData.admin_approved) {
             await supabase.auth.signOut();
-            throw new Error('Admin approval pending');
+            throw new Error('Your account is pending admin approval. Please wait for approval before logging in.');
           }
-
-          toast({
-            title: 'Success!',
-            description: 'Logged in successfully.',
-          });
         }
+
+        toast({
+          title: 'Success!',
+          description: 'Logged in successfully.',
+        });
       } else {
-        // SIGNUP (Only for users, not admins)
+        // SIGNUP
         if (!otpVerified) throw new Error('Please verify OTP before signing up.');
 
         if (!isValidEmail(email)) {
@@ -284,8 +225,8 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
             email: email,
             contact_number: phone,
             Gender: gender,
-            status: 'inactive',
-            admin_approved: false,
+            status: 'inactive', // Will be 'active' when they have a valid plan
+            admin_approved: false, // Needs admin approval
           },
         ]);
 
@@ -294,12 +235,12 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           throw new Error(`Failed to create user profile: ${userInsertError.message}`);
         }
 
-        // Immediately sign out after signup so user is not logged in
+        // Immediately sign out after signup
         await supabase.auth.signOut();
 
         toast({
           title: 'Success!',
-          description: 'Account created successfully. Please wait for admin approval.',
+          description: 'Account created successfully. Please wait for admin approval before logging in.',
         });
       }
 
@@ -311,7 +252,6 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         description: error.message,
         variant: 'destructive',
       });
-      // Clear and focus password field on error
       setPassword("");
       setTimeout(() => {
         passwordInputRef.current?.focus();
@@ -414,7 +354,6 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                // Reset OTP input and verification when email changes
                 setOtp('');
                 setOtpVerified(false);
                 setOtpSent(false);
@@ -454,9 +393,9 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
                 type="button"
                 onClick={handleSendOtp}
                 className="w-full bg-blue-500 hover:bg-blue-600"
-                disabled={!isSignupFormComplete || timer > 0 || loading}
+                disabled={!isSignupFormComplete || timer > 0}
               >
-                {loading ? 'Sending...' : timer > 0 ? `Resend OTP in ${timer}s` : otpSent ? 'Resend OTP' : 'Send OTP'}
+                {timer > 0 ? `Resend OTP in ${timer}s` : otpSent ? 'Resend OTP' : 'Send OTP'}
               </Button>
 
               {otpSent && (

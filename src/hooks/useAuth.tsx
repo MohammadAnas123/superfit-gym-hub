@@ -9,6 +9,7 @@ interface UserData {
   name: string;
   email: string;
   isAdmin: boolean;
+  status?: string; // 'active' or 'inactive' - for plan validity
 }
 
 export const useAuth = () => {
@@ -62,28 +63,28 @@ export const useAuth = () => {
 
   const fetchUserData = async (userId: string, email: string) => {
     try {
-      console.log('Fetching user data for:', { userId, email }); // Debug log
+      console.log('Fetching user data for:', { userId, email });
       
       // First, try to find admin by admin_id
       let { data: adminData, error: adminError } = await supabase
         .from('admin_master')
-        .select('admin_name, email, status, admin_id')
+        .select('admin_name, admin_email, status, admin_id')
         .eq('admin_id', userId)
         .maybeSingle();
 
       // If not found by ID, try by email
       if (!adminData && !adminError) {
-        console.log('Admin not found by ID, trying email...'); // Debug log
+        console.log('Admin not found by ID, trying email...');
         const result = await supabase
           .from('admin_master')
-          .select('admin_name, email, status, admin_id')
-          .ilike('email', email.trim().toLowerCase())
+          .select('admin_name, admin_email, status, admin_id')
+          .ilike('admin_email', email.trim().toLowerCase())
           .maybeSingle();
         adminData = result.data;
         adminError = result.error;
       }
 
-      console.log('Admin query result:', { adminData, adminError }); // Debug log
+      console.log('Admin query result:', { adminData, adminError });
 
       if (!adminError && adminData) {
         // User is an admin
@@ -91,7 +92,7 @@ export const useAuth = () => {
         setUserData({
           id: userId,
           name: adminData.admin_name || 'Admin',
-          email: adminData.email,
+          email: adminData.admin_email,
           isAdmin: true
         });
         return;
@@ -100,31 +101,46 @@ export const useAuth = () => {
       // If not admin, check user_master
       let { data: memberData, error: memberError } = await supabase
         .from('user_master')
-        .select('user_name, email, user_id')
+        .select('user_name, email, user_id, status, admin_approved')
         .eq('user_id', userId)
         .maybeSingle();
 
       // If not found by ID, try by email
       if (!memberData && !memberError) {
-        console.log('User not found by ID, trying email...'); // Debug log
+        console.log('User not found by ID, trying email...');
         const result = await supabase
           .from('user_master')
-          .select('user_name, email, user_id')
+          .select('user_name, email, user_id, status, admin_approved')
           .ilike('email', email.trim().toLowerCase())
           .maybeSingle();
         memberData = result.data;
         memberError = result.error;
       }
 
-      console.log('User query result:', { memberData, memberError }); // Debug log
+      console.log('User query result:', { memberData, memberError });
 
       if (!memberError && memberData) {
         console.log('User found:', memberData);
+        
+        // Check if user is not approved
+        if (!memberData.admin_approved) {
+          await supabase.auth.signOut();
+          toast({
+            title: 'Approval Pending',
+            description: 'Your account is pending admin approval.',
+            variant: 'destructive',
+          });
+          setUser(null);
+          setUserData(null);
+          return;
+        }
+
         setUserData({
           id: userId,
           name: memberData.user_name || 'User',
           email: memberData.email,
-          isAdmin: false
+          isAdmin: false,
+          status: memberData.status
         });
         return;
       }
@@ -180,6 +196,7 @@ export const useAuth = () => {
     loading,
     signOut,
     isAdmin: userData?.isAdmin || false,
-    userName: userData?.name || ''
+    userName: userData?.name || '',
+    status: userData?.status
   };
 };

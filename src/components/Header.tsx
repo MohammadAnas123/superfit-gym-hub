@@ -58,6 +58,14 @@ const Header = () => {
                 {item.name}
               </a>
             ))}
+            {isAdmin && (
+  <a
+    href="/admin/dashboard"
+    className="text-white hover:text-red-500 transition-colors"
+  >
+    Dashboard
+  </a>
+)}
           </nav>
 
           {/* Auth Buttons */}
