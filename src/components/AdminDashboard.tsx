@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Users, CheckCircle, XCircle, Search, RefreshCw, Eye, X, Calendar, Package, CreditCard, Plus, AlertTriangle, Ban } from 'lucide-react';
+import { Shield, Users, CheckCircle, XCircle, Search, RefreshCw, Eye, X, Calendar, Package as PackageIcon, CreditCard, Plus, AlertTriangle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AddPurchaseModal from './AddPurchaseModal';
+import PackageManagement from './PackageManagement';
 
 interface User {
   user_id: string;
@@ -31,7 +32,10 @@ interface UserPurchase {
   created_at: string;
 }
 
+type ActiveTab = 'users' | 'packages';
+
 const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,6 +48,7 @@ const AdminDashboard = () => {
   const [blacklistReason, setBlacklistReason] = useState('');
   const [refundAmount, setRefundAmount] = useState(0);
   const [remainingDays, setRemainingDays] = useState(0);
+  const [hasActivePlan, setHasActivePlan] = useState(false);
   
   const { isAdmin, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -87,7 +92,6 @@ const AdminDashboard = () => {
       if (error) throw error;
       setUserPurchases(data || []);
       
-      // Calculate refund for active plan
       if (data && data.length > 0) {
         const activePlan = data.find(p => {
           const endDate = new Date(p.end_date);
@@ -96,6 +100,7 @@ const AdminDashboard = () => {
         });
         
         if (activePlan) {
+          setHasActivePlan(true);
           const daysLeft = calculateDaysRemaining(activePlan.end_date);
           const totalDays = calculateTotalDays(activePlan.start_date, activePlan.end_date);
           const dailyRate = activePlan.amount / totalDays;
@@ -104,9 +109,14 @@ const AdminDashboard = () => {
           setRemainingDays(daysLeft);
           setRefundAmount(refund);
         } else {
+          setHasActivePlan(false);
           setRemainingDays(0);
           setRefundAmount(0);
         }
+      } else {
+        setHasActivePlan(false);
+        setRemainingDays(0);
+        setRefundAmount(0);
       }
     } catch (error: any) {
       toast({
@@ -115,6 +125,9 @@ const AdminDashboard = () => {
         variant: 'destructive',
       });
       setUserPurchases([]);
+      setHasActivePlan(false);
+      setRemainingDays(0);
+      setRefundAmount(0);
     } finally {
       setLoadingDetails(false);
     }
@@ -196,7 +209,6 @@ const AdminDashboard = () => {
     }
 
     try {
-      // Update user status to blacklisted
       const { error } = await supabase
         .from('user_master')
         .update({ 
@@ -209,12 +221,9 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      // Sign out the user from auth
-      // Note: This would require admin API access in production
-      
       toast({
         title: 'User Blacklisted',
-        description: `${selectedUser.user_name} has been blacklisted. Refund amount: ₹${refundAmount}`,
+        description: `${selectedUser.user_name} has been blacklisted.${hasActivePlan ? ` Refund amount: ₹${refundAmount}` : ''}`,
       });
 
       setBlacklistDialogOpen(false);
@@ -290,209 +299,246 @@ const AdminDashboard = () => {
           <p className="text-gray-600">Manage user accounts, approvals, and subscriptions</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-              </div>
-              <Users className="text-blue-500" size={32} />
-            </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Approved</p>
-                <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-              </div>
-              <CheckCircle className="text-green-500" size={32} />
-            </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
-              </div>
-              <Shield className="text-orange-500" size={32} />
-            </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Active Plans</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.activePlans}</p>
-              </div>
-              <Package className="text-blue-500" size={32} />
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Blacklisted</p>
-                <p className="text-2xl font-bold text-red-600">{stats.blacklisted}</p>
-              </div>
-              <Ban className="text-red-500" size={32} />
-            </div>
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`${
+                  activeTab === 'users'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+              >
+                <Users className="mr-2" size={20} />
+                User Management
+              </button>
+              <button
+                onClick={() => setActiveTab('packages')}
+                className={`${
+                  activeTab === 'packages'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+              >
+                <PackageIcon className="mr-2" size={20} />
+                Package Management
+              </button>
+            </nav>
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                variant={filterStatus === 'all' ? 'default' : 'outline'}
-                onClick={() => setFilterStatus('all')}
-              >
-                All
-              </Button>
-              <Button
-                variant={filterStatus === 'approved' ? 'default' : 'outline'}
-                onClick={() => setFilterStatus('approved')}
-                className={filterStatus === 'approved' ? 'bg-green-500 hover:bg-green-600' : ''}
-              >
-                Approved
-              </Button>
-              <Button
-                variant={filterStatus === 'pending' ? 'default' : 'outline'}
-                onClick={() => setFilterStatus('pending')}
-                className={filterStatus === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''}
-              >
-                Pending
-              </Button>
-            </div>
-            
-            <Button onClick={fetchUsers} variant="outline">
-              <RefreshCw size={16} className="mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </div>
+        {/* Conditional Rendering based on Active Tab */}
+        {activeTab === 'packages' ? (
+          <PackageManagement />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Users</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                  </div>
+                  <Users className="text-blue-500" size={32} />
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Approved</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+                  </div>
+                  <CheckCircle className="text-green-500" size={32} />
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Pending</p>
+                    <p className="text-2xl font-bold text-orange-600">{stats.pending}</p>
+                  </div>
+                  <Shield className="text-orange-500" size={32} />
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Active Plans</p>
+                    <p className="text-2xl font-bold text-blue-600">{stats.activePlans}</p>
+                  </div>
+                  <PackageIcon className="text-blue-500" size={32} />
+                </div>
+              </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <RefreshCw className="animate-spin mr-2" size={24} />
-              <span>Loading users...</span>
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Blacklisted</p>
+                    <p className="text-2xl font-bold text-red-600">{stats.blacklisted}</p>
+                  </div>
+                  <Ban className="text-red-500" size={32} />
+                </div>
+              </div>
             </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No users found
+
+            <div className="bg-white p-4 rounded-lg shadow mb-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <Input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant={filterStatus === 'all' ? 'default' : 'outline'}
+                    onClick={() => setFilterStatus('all')}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant={filterStatus === 'approved' ? 'default' : 'outline'}
+                    onClick={() => setFilterStatus('approved')}
+                    className={filterStatus === 'approved' ? 'bg-green-500 hover:bg-green-600' : ''}
+                  >
+                    Approved
+                  </Button>
+                  <Button
+                    variant={filterStatus === 'pending' ? 'default' : 'outline'}
+                    onClick={() => setFilterStatus('pending')}
+                    className={filterStatus === 'pending' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+                  >
+                    Pending
+                  </Button>
+                </div>
+                
+                <Button onClick={fetchUsers} variant="outline">
+                  <RefreshCw size={16} className="mr-2" />
+                  Refresh
+                </Button>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Gender
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredUsers.map((user) => (
-                    <tr key={user.user_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{user.user_name}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.contact_number}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.Gender}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {user.is_blacklisted ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Blacklisted
-                          </span>
-                        ) : !user.admin_approved ? (
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
-                            Pending Approval
-                          </span>
-                        ) : (
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.status === 'active'
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.status === 'active' ? 'Active Plan' : 'No Plan'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
-                          {user.is_blacklisted ? (
-                            <span className="text-red-600 text-xs">Blacklisted</span>
-                          ) : !user.admin_approved ? (
-                            <>
-                              <Button
-                                onClick={() => approveUser(user.user_id)}
-                                size="sm"
-                                className="bg-green-500 hover:bg-green-600"
-                              >
-                                <CheckCircle size={14} className="mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                onClick={() => rejectUser(user.user_id)}
-                                size="sm"
-                                variant="destructive"
-                              >
-                                <XCircle size={14} className="mr-1" />
-                                Reject
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              onClick={() => openUserDetails(user)}
-                              size="sm"
-                              variant="outline"
-                            >
-                              <Eye size={14} className="mr-1" />
-                              View Details
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="animate-spin mr-2" size={24} />
+                  <span>Loading users...</span>
+                </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No users found
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          User
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Gender
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.user_id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{user.user_name}</div>
+                              <div className="text-sm text-gray-500">{user.email}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.contact_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.Gender}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {user.is_blacklisted ? (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                Blacklisted
+                              </span>
+                            ) : !user.admin_approved ? (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                Pending Approval
+                              </span>
+                            ) : (
+                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                user.status === 'active'
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {user.status === 'active' ? 'Active Plan' : 'No Plan'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div className="flex gap-2">
+                              {user.is_blacklisted ? (
+                                <span className="text-red-600 text-xs">Blacklisted</span>
+                              ) : !user.admin_approved ? (
+                                <>
+                                  <Button
+                                    onClick={() => approveUser(user.user_id)}
+                                    size="sm"
+                                    className="bg-green-500 hover:bg-green-600"
+                                  >
+                                    <CheckCircle size={14} className="mr-1" />
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    onClick={() => rejectUser(user.user_id)}
+                                    size="sm"
+                                    variant="destructive"
+                                  >
+                                    <XCircle size={14} className="mr-1" />
+                                    Reject
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  onClick={() => openUserDetails(user)}
+                                  size="sm"
+                                  variant="outline"
+                                >
+                                  <Eye size={14} className="mr-1" />
+                                  View Details
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       {/* User Details Dialog */}
@@ -584,7 +630,7 @@ const AdminDashboard = () => {
                   </div>
                 ) : userPurchases.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <Package className="mx-auto mb-2 text-gray-400" size={48} />
+                    <PackageIcon className="mx-auto mb-2 text-gray-400" size={48} />
                     <p className="text-gray-600">No purchases yet</p>
                   </div>
                 ) : (
@@ -696,7 +742,7 @@ const AdminDashboard = () => {
               </ul>
             </div>
 
-            {remainingDays > 0 && (
+            {hasActivePlan && remainingDays > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-semibold text-yellow-900 mb-2">Refund Calculation</h4>
                 <div className="text-sm text-yellow-800 space-y-1">
