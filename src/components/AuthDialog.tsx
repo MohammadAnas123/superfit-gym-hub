@@ -168,14 +168,17 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         if (!isAdmin) {
           const { data: userData, error: userError } = await supabase
             .from('user_master')
-            .select('admin_approved')
+            .select('admin_approved, is_blacklisted')
             .eq('email', email)
             .single();
 
           if (userError) throw userError;
 
           // Check if user is approved
-          if (!userData.admin_approved) {
+          if(userData.is_blacklisted){
+            await supabase.auth.signOut();
+            throw new Error('Your account has been deactivated. Please contact admin for more information.');
+          }else if (!userData.admin_approved) {
             await supabase.auth.signOut();
             throw new Error('Your account is pending admin approval. Please wait for approval before logging in.');
           }
