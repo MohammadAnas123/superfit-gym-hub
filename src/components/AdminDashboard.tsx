@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Users, CheckCircle, XCircle, Search, RefreshCw, Eye, X, Calendar, Package as PackageIcon, CreditCard, Plus, AlertTriangle, Ban } from 'lucide-react';
+import { Shield, Users, CheckCircle, XCircle, Search, RefreshCw, Eye, X, Calendar, Package as PackageIcon, CreditCard, Plus, AlertTriangle, Ban, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AddPurchaseModal from './AddPurchaseModal';
 import PackageManagement from './PackageManagement';
+import NotificationsAndMessages from './NotificationsAndMessages';
 
 interface User {
   user_id: string;
@@ -32,7 +33,7 @@ interface UserPurchase {
   created_at: string;
 }
 
-type ActiveTab = 'users' | 'packages';
+type ActiveTab = 'users' | 'packages' | 'notifications';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('users');
@@ -325,6 +326,17 @@ const AdminDashboard = () => {
                 <PackageIcon className="mr-2" size={20} />
                 Package Management
               </button>
+              <button
+                onClick={() => setActiveTab('notifications')}
+                className={`${
+                  activeTab === 'notifications'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+              >
+                <Bell className="mr-2" size={20} />
+                Notifications & Messages
+              </button>
             </nav>
           </div>
         </div>
@@ -332,6 +344,8 @@ const AdminDashboard = () => {
         {/* Conditional Rendering based on Active Tab */}
         {activeTab === 'packages' ? (
           <PackageManagement />
+        ) : activeTab === 'notifications' ? (
+          <NotificationsAndMessages />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
