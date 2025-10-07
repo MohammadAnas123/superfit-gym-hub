@@ -1,5 +1,5 @@
 import express from "express";
-import { sendOtpEmail } from "../mailService.js";
+import { sendOtpEmail } from "../services/otpService.js";
 
 const router = express.Router();
 

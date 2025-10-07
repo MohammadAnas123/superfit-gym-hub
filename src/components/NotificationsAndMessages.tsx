@@ -140,87 +140,168 @@ const NotificationsAndMessages = () => {
     setReminderDialogOpen(true);
   };
 
-  const handleReplyToMessage = async () => {
-    if (!selectedMessage || !replyText.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a reply message',
-        variant: 'destructive',
-      });
-      return;
+  // Helper function to send reply email
+const sendReplyEmail = async (
+  email: string,
+  userName: string,
+  userSubject: string,
+  userMessage: string,
+  adminReply: string
+) => {
+  try {
+    const response = await fetch("http://localhost:5000/api/send-reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        userName,
+        userSubject,
+        userMessage,
+        adminReply,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
     }
 
-    setSendingEmail(true);
-    try {
-      // Update message with reply
-      const { error: updateError } = await supabase
-        .from('user_messages')
-        .update({
-          admin_reply: replyText,
-          status: 'replied',
-          replied_at: new Date().toISOString(),
-        })
-        .eq('message_id', selectedMessage.message_id);
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error("Error sending reply email:", err);
+    throw err;
+  }
+};
 
-      if (updateError) throw updateError;
+// Helper function to send reminder email
+const sendReminderEmail = async (
+  email: string,
+  userName: string,
+  packageName: string,
+  daysRemaining: number,
+  endDate: string,
+  message: string
+) => {
+  try {
+    const response = await fetch("http://localhost:5000/api/send-reminder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        userName,
+        packageName,
+        daysRemaining,
+        endDate,
+        message,
+      }),
+    });
 
-      // TODO: Send actual email using your email service (SendGrid, AWS SES, etc.)
-      // For now, we'll just simulate the email sending
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      toast({
-        title: 'Success',
-        description: `Reply sent to ${selectedMessage.email}`,
-      });
-
-      setReplyDialogOpen(false);
-      setReplyText('');
-      fetchContactMessages();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSendingEmail(false);
-    }
-  };
-
-  const handleSendReminder = async () => {
-    if (!selectedMembership || !reminderText.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Please enter a reminder message',
-        variant: 'destructive',
-      });
-      return;
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
     }
 
-    setSendingEmail(true);
-    try {
-      // TODO: Send actual email using your email service
-      // For now, we'll simulate the email sending
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error("Error sending reminder email:", err);
+    throw err;
+  }
+};
 
-      toast({
-        title: 'Reminder Sent',
-        description: `Membership expiry reminder sent to ${selectedMembership.user_name}`,
-      });
+// Updated handleReplyToMessage function
+const handleReplyToMessage = async () => {
+  if (!selectedMessage || !replyText.trim()) {
+    toast({
+      title: 'Error',
+      description: 'Please enter a reply message',
+      variant: 'destructive',
+    });
+    return;
+  }
 
-      setReminderDialogOpen(false);
-      setReminderText('');
-      setSelectedMembership(null);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSendingEmail(false);
-    }
-  };
+  setSendingEmail(true);
+  try {
+    // Update message with reply in database
+    const { error: updateError } = await supabase
+      .from('user_messages')
+      .update({
+        admin_reply: replyText,
+        status: 'replied',
+        replied_at: new Date().toISOString(),
+      })
+      .eq('message_id', selectedMessage.message_id);
+
+    if (updateError) throw updateError;
+
+    // Send actual email
+    await sendReplyEmail(
+      selectedMessage.email,
+      selectedMessage.name,
+      selectedMessage.subject,
+      selectedMessage.message,
+      replyText
+    );
+
+    toast({
+      title: 'Success',
+      description: `Reply sent to ${selectedMessage.email}`,
+    });
+
+    setReplyDialogOpen(false);
+    setReplyText('');
+    fetchContactMessages();
+  } catch (error: any) {
+    toast({
+      title: 'Error',
+      description: error.message || 'Failed to send reply',
+      variant: 'destructive',
+    });
+  } finally {
+    setSendingEmail(false);
+  }
+};
+
+  // Updated handleSendReminder function
+const handleSendReminder = async () => {
+  if (!selectedMembership || !reminderText.trim()) {
+    toast({
+      title: 'Error',
+      description: 'Please enter a reminder message',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setSendingEmail(true);
+  try {
+    // Send actual email
+    await sendReminderEmail(
+      selectedMembership.email,
+      selectedMembership.user_name,
+      selectedMembership.package_name,
+      selectedMembership.days_remaining,
+      selectedMembership.end_date,
+      reminderText
+    );
+
+    toast({
+      title: 'Reminder Sent',
+      description: `Membership expiry reminder sent to ${selectedMembership.user_name}`,
+    });
+
+    setReminderDialogOpen(false);
+    setReminderText('');
+    setSelectedMembership(null);
+  } catch (error: any) {
+    toast({
+      title: 'Error',
+      description: error.message || 'Failed to send reminder',
+      variant: 'destructive',
+    });
+  } finally {
+    setSendingEmail(false);
+  }
+};
 
   const markAsResolved = async (messageId: string) => {
     try {

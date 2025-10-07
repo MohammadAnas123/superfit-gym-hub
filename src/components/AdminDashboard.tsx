@@ -171,29 +171,69 @@ const AdminDashboard = () => {
     }
   };
 
+  // const rejectUser = async (userId: string) => {
+  //   try {
+  //     const { error: deleteError } = await supabase
+  //       .from('user_master')
+  //       .delete()
+  //       .eq('user_id', userId);
+
+  //     if (deleteError) throw deleteError;
+  //     toast({
+  //       title: 'Success',
+  //       description: 'User rejected and removed',
+  //     });
+
+  //     fetchUsers();
+  //   } catch (error: any) {
+  //     toast({
+  //       title: 'Error',
+  //       description: error.message,
+  //       variant: 'destructive',
+  //     });
+  //   }
+  // };
+
+
   const rejectUser = async (userId: string) => {
-    try {
-      const { error: deleteError } = await supabase
-        .from('user_master')
-        .delete()
-        .eq('user_id', userId);
+  try {
+    // First, delete from user_master table
+    const { error: deleteError } = await supabase
+      .from('user_master')
+      .delete()
+      .eq('user_id', userId);
 
-      if (deleteError) throw deleteError;
+    if (deleteError) throw deleteError;
 
+    // Then, delete from Supabase Auth
+    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(
+      userId
+    );
+
+    if (authDeleteError) {
+      console.error('Error deleting user from auth:', authDeleteError);
+      // Note: User is already deleted from user_master, so we'll show a warning
       toast({
-        title: 'Success',
-        description: 'User rejected and removed',
-      });
-
-      fetchUsers();
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
+        title: 'Partial Success',
+        description: 'User removed from database but could not be deleted from authentication system',
         variant: 'destructive',
       });
+    } else {
+      toast({
+        title: 'Success',
+        description: 'User rejected and completely removed',
+      });
     }
-  };
+
+    fetchUsers();
+  } catch (error: any) {
+    toast({
+      title: 'Error',
+      description: error.message,
+      variant: 'destructive',
+    });
+  }
+};
 
   const openBlacklistDialog = () => {
     setBlacklistDialogOpen(true);

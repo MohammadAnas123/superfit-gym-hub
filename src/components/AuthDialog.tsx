@@ -159,28 +159,38 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           password 
         });
         
+
         if (error) {
           console.error('Supabase Auth Error:', error);
           throw error;
         }
 
         // Check if user is a member (not admin)
-        if (!isAdmin) {
+        if (!isAdmin) { 
           const { data: userData, error: userError } = await supabase
             .from('user_master')
             .select('admin_approved, is_blacklisted')
             .eq('email', email)
             .single();
 
-          if (userError) throw userError;
 
-          // Check if user is approved
-          if(userData.is_blacklisted){
+          if (userError){
             await supabase.auth.signOut();
-            throw new Error('Your account has been deactivated. Please contact admin for more information.');
-          }else if (!userData.admin_approved) {
+            throw new Error('Your account doesn\'t exists in database.');
+          }
+
+          // Check if user is approved\
+          if(userData){
+            if(userData.is_blacklisted){
+              await supabase.auth.signOut();
+              throw new Error('Your account has been deactivated. Please contact admin for more information.');
+            }else if (!userData.admin_approved) {
+              await supabase.auth.signOut();
+              throw new Error('Your account is pending admin approval. Please wait for approval before logging in.');
+            }
+          }else{
             await supabase.auth.signOut();
-            throw new Error('Your account is pending admin approval. Please wait for approval before logging in.');
+            throw new Error('Your account doesn\'t exists in database.');
           }
         }
 
@@ -200,12 +210,14 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
 
         const { data: existingUser } = await supabase
           .from('user_master')
-          .select('email, admin_approved, user_id')
+          .select('email, admin_approved, user_id, is_blacklisted')
           .eq('email', cleanEmail)
           .single();
 
         if (existingUser) {
-          if (!existingUser.admin_approved) {
+          if(existingUser.is_blacklisted){
+            throw new Error('Your account already exists and is currently deactivated. Please contact admin for more information.');
+          }else if (!existingUser.admin_approved) {
             throw new Error('User already registered! Admin approval is pending');
           } else {
             throw new Error('User already registered!');
@@ -220,6 +232,9 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         if (signUpError) throw new Error(signUpError.message);
 
         if (!signUpData.user?.id) throw new Error('Failed to create user account');
+
+        // Immediately sign out after signup
+        await supabase.auth.signOut();
 
         const { error: userInsertError } = await supabase.from('user_master').insert([
           {
@@ -238,9 +253,6 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
           throw new Error(`Failed to create user profile: ${userInsertError.message}`);
         }
 
-        // Immediately sign out after signup
-        await supabase.auth.signOut();
-
         toast({
           title: 'Success!',
           description: 'Account created successfully. Please wait for admin approval before logging in.',
@@ -256,6 +268,9 @@ const AuthDialog = ({ children, isAdmin = false }: AuthDialogProps) => {
         variant: 'destructive',
       });
       setPassword("");
+      setOtpVerified(false);
+      setOtpSent(false);
+      setOtp("");
       setTimeout(() => {
         passwordInputRef.current?.focus();
       }, 0);
