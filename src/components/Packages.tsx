@@ -60,6 +60,15 @@ const Packages = () => {
     return `/${days} days`;
   };
 
+  const handleEnquiry = (packageName: string) => {
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth' });
+      // Store selected package in sessionStorage so contact form can use it
+      sessionStorage.setItem('selectedPackage', packageName);
+    }
+  };
+
   if (loading) {
     return (
       <section id="packages" className="py-20 bg-white">
@@ -128,7 +137,6 @@ const Packages = () => {
           'md:grid-cols-2 lg:grid-cols-3'
         }`}>
           {packages.map((pkg) => {
-            // Use is_popular from database instead of calculating
             const popular = pkg.is_popular;
             
             return (
@@ -185,15 +193,9 @@ const Packages = () => {
                       ? 'bg-white text-red-500 hover:bg-gray-100'
                       : 'bg-red-500 text-white hover:bg-red-600'
                   }`}
-                  onClick={() => {
-                    // Handle package selection - scroll to contact or open modal
-                    const contactSection = document.getElementById('contact');
-                    if (contactSection) {
-                      contactSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
+                  onClick={() => handleEnquiry(pkg.package_name)}
                 >
-                  Choose Plan
+                  Get Started
                 </button>
               </div>
             );
@@ -202,11 +204,23 @@ const Packages = () => {
 
         {/* Additional info section */}
         <div className="mt-16 text-center">
-          <p className="text-gray-600">
-            All packages include locker facility and expert guidance. 
-            <br />
-            Contact us for custom packages or corporate memberships.
+          <p className="text-gray-600 mb-4">
+            All packages include locker facility and expert guidance.
           </p>
+          <p className="text-gray-900 font-semibold">
+            Ready to transform your fitness journey? Contact us to get started!
+          </p>
+          <button
+            onClick={() => {
+              const contactSection = document.getElementById('contact');
+              if (contactSection) {
+                contactSection.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="mt-6 bg-red-500 text-white px-8 py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors inline-flex items-center gap-2"
+          >
+            Contact Us for Enquiry
+          </button>
         </div>
       </div>
     </section>
