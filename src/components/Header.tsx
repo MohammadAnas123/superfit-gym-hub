@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Menu, X, LogOut, Shield } from 'lucide-react';
+import { Menu, X, LogOut, Shield, User } from 'lucide-react';
 import AuthDialog from './AuthDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -58,14 +58,25 @@ const Header = () => {
                 {item.name}
               </a>
             ))}
+            {/* Dashboard Links */}
             {isAdmin && (
-  <a
-    href="/admin/dashboard"
-    className="text-white hover:text-red-500 transition-colors"
-  >
-    Dashboard
-  </a>
-)}
+              <a
+                href="/admin/dashboard"
+                className="text-white hover:text-red-500 transition-colors flex items-center"
+              >
+                <Shield size={16} className="mr-1" />
+                Admin Dashboard
+              </a>
+            )}
+            {user && !isAdmin && (
+              <a
+                href="/member/dashboard"
+                className="text-white hover:text-red-500 transition-colors flex items-center"
+              >
+                <User size={16} className="mr-1" />
+                My Dashboard
+              </a>
+            )}
           </nav>
 
           {/* Auth Buttons */}
@@ -131,6 +142,28 @@ const Header = () => {
                   {item.name}
                 </a>
               ))}
+              {/* Mobile Dashboard Links */}
+              {isAdmin && (
+                <a
+                  href="/admin/dashboard"
+                  className="block px-3 py-2 text-white hover:text-red-500 flex items-center"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <Shield size={16} className="mr-2" />
+                  Admin Dashboard
+                </a>
+              )}
+              {user && !isAdmin && (
+                <a
+                  href="/member/dashboard"
+                  className="block px-3 py-2 text-white hover:text-red-500 flex items-center"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <User size={16} className="mr-2" />
+                  My Dashboard
+                </a>
+              )}
+              
               <div className="pt-4 space-y-2">
                 {user ? (
                   <div className="space-y-2">
