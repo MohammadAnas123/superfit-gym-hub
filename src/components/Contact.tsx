@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+
 const Contact = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
